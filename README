@@ -1,0 +1,7 @@
+displayid3 - displays an MP3 file's ID3 information.
+
+Usage: displayid3 filename
+No options, only one filename argument accepted.
+
+Based on my verifyid3 program available at https://github.com/Cantido/verifyid3
+Documentation on the ID3v2 unofficial standard: http://id3.org/id3v2-00
