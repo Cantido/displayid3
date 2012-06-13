@@ -3,7 +3,7 @@
  * Author: Robert Richter - robert.c.richter@gmail.com
  * Date: June 2012
  * Description: Using the rules for an ID3v2 header given at
- *   http://id3.org/id3v2-00, this program reads and displays the information
+ *   http://id3.org/d3v2.3.0, this program reads and displays the information
  *   contained in a file's ID3v2 tag. Uses the same source as my verifyid3
  *   program, available at https://github.com/Cantido/verifyid3
 \******************************************************************************/
@@ -89,8 +89,8 @@ int main(int argc, char *argv[]){
   id3size |= id3header[9];
   id3size += 10; /* The size tag does not include the size of the header */
   
-  printf("ID3 Information for file %s:\n", argv[1]);
-  printf("ID3 version number: %i.%i\n", id3version[0], id3version[1]);
+  printf("ID3v2 Information for file %s:\n", argv[1]);
+  printf("ID3v2 version number: %i.%i\n", id3version[0], id3version[1]);
   
   printf("Using unsynchronization: ");
   if((id3flags & 0x80) == 0x80)
@@ -98,9 +98,15 @@ int main(int argc, char *argv[]){
   else
     printf("no\n");
   
-  printf("Using compression: ");
-  if ((id3flags & 0x40) == 0x40)
-    printf("yes (WARNING: The ID3v2 standard says decoders should ignore tags with this bit set!)\n");
+  printf("Extended header present?: ");
+  if((id3flags & 0x40) == 0x40)
+    printf("yes\n");
+  else
+    printf("no\n");
+  
+  printf("Tag in experimental stage?: ");
+  if ((id3flags & 0x20) == 0x20)
+    printf("yes (WARNING: This program may have trouble interpreting this file!\n");
   else
     printf("no\n");
   
