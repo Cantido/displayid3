@@ -107,9 +107,9 @@ int main(int argc, char *argv[]){
   printf("Size of tag (including header): %i bytes", id3size);
   
   if(id3size > MEGABYTE)
-    printf(" (%i MiB)", id3size % MEGABYTE);
+    printf(" (%i MiB)", id3size / MEGABYTE);
   else if(id3size > KILOBYTE)
-    printf(" (%i KiB)", id3size % KILOBYTE);
+    printf(" (%i KiB)", id3size / KILOBYTE);
   
   printf("\n");
   
