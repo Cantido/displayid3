@@ -14,18 +14,139 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define MEGABYTE 1048576
 #define KILOBYTE 1024
 
+int fd;
+unsigned char id3version[2];
+unsigned char id3flags;
+unsigned int id3size;
+
+unsigned int calcsize(char *array){
+  unsigned int size = array[0];
+  size <<= 7;
+  size |= array[1];
+  size <<= 7;
+  size |= array[2];
+  size <<= 7;
+  size |= array[3];
+  return size;
+}
+
+/* return a pointer to bytes read from the frame, NULL if something screws up */
+char *getframe(){
+
+  extern int fd;
+  extern unsigned int id3size;
+  
+  unsigned char frameheader[10];
+  unsigned char *frame;
+  unsigned int framesize;
+  
+  if (((id3size - 10) - lseek(fd, 0, SEEK_CUR)) <= 0){
+    /* no more bytes left in the header */
+    return NULL;
+  }
+  
+  switch (read(fd, frameheader, 10)){
+    case -1:
+      /* read encountered an error */
+      perror("displayid3 read error:");
+      /* falls through */
+    case 0:
+      return NULL;
+      break;
+    case 10:
+      /* no errors */
+      break;
+    default:
+      /* unknown error occurred in read() */
+      return NULL;
+      break;
+  }
+  
+  framesize = calcsize(&frameheader[4]) + 10;
+  
+  if((frame = malloc(framesize)) != NULL){
+    (void) memcpy(frame, frameheader, 10);
+    read(fd, frame+10, framesize);
+  }
+  else
+    frame = NULL;
+  
+  return frame;
+}
+
+void printframe(char *frame){
+  unsigned char frameid[5];
+  unsigned int framesize;
+  unsigned char frameflags[2];
+  
+  frameid[0] = frame[0];
+  frameid[1] = frame[1];
+  frameid[2] = frame[2];
+  frameid[3] = frame[3];
+  frameid[4] = '\0';
+  
+  framesize = calcsize(&frame[4]);
+  
+  frameflags[0] = frame[8];
+  frameflags[1] = frame[9];
+  
+  printf("Frame ID: %s\n", frameid);
+  printf("Size of frame (excluding 10B header): %d bytes\n", framesize);
+  
+  printf("Flags:\n");
+  
+  printf("Tag alter preservation: ");
+  if((frameflags[0] & 0x80) == 0x80)
+    printf("Frame should be discarded\n");
+  else
+    printf("Frame should be preserved\n");
+  
+  printf("File alter preservation: ");
+  if((frameflags[0] & 0x40) == 0x40)
+    printf("Frame should be discarded\n");
+  else
+    printf("Frame should be preserved\n");
+  
+  printf("Frame should be read only: ");
+  if((frameflags[0] & 0x20) == 0x20)
+    printf("yes\n");
+  else
+    printf("no\n");
+  
+  if((frameflags[1] & 0x80) == 0x80)
+    printf("Frame is compressed\n");
+  else
+    printf("Frame is not compressed\n");
+  
+  if((frameflags[1] & 0x40) == 0x40)
+    printf("Frame is encrypted\n");
+  else
+    printf("Frame is not encrypted\n");
+  
+  if((frameflags[1] & 0x20) == 0x20)
+    printf("Frame is in a group with other frames\n");
+  else
+    printf("Frame is not in a group with other frames\n");
+  
+  return;
+}
+
 int main(int argc, char *argv[]){
   int return_code;
   
-  int fd;
+  extern int fd;
+  extern unsigned char id3version[2];
+  extern unsigned char id3flags;
+  extern unsigned int id3size;
+  
   unsigned char id3header[10];
-  unsigned char id3version[2];
-  unsigned char id3flags;
-  unsigned int id3size;
+  char *frame;
+  
   
   if(argc != 2){
     printf("Usage: %s filename", argv[0]);
@@ -80,14 +201,7 @@ int main(int argc, char *argv[]){
   
   id3flags = id3header[5];
   
-  id3size = id3header[6];
-  id3size <<= 7;
-  id3size |= id3header[7];
-  id3size <<= 7;
-  id3size |= id3header[8];
-  id3size <<= 7;
-  id3size |= id3header[9];
-  id3size += 10; /* The size tag does not include the size of the header */
+  id3size = calcsize(&id3header[6]);
   
   printf("ID3v2 Information for file %s:\n", argv[1]);
   printf("ID3v2 version number: %i.%i\n", id3version[0], id3version[1]);
@@ -110,7 +224,7 @@ int main(int argc, char *argv[]){
   else
     printf("no\n");
   
-  printf("Size of tag (including header): %i bytes", id3size);
+  printf("Size of tag (excluding 10B header): %i bytes", id3size);
   
   if(id3size > MEGABYTE)
     printf(" (%i MiB)", id3size / MEGABYTE);
@@ -119,7 +233,14 @@ int main(int argc, char *argv[]){
   
   printf("\n");
   
+  frame = getframe();
+  if(frame != NULL)
+    printframe(frame);
+  else
+    printf("frame is NULL");
+  
   (void) close(fd);
+ //free(frame);
   
   return return_code;
 }
