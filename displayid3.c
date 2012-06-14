@@ -22,6 +22,22 @@
 #define MATCHFID( arg ) (strcmp(frameid, arg) == 0)
 #define PRINT_FRAMETEXT( arg ) printf(arg "%.*s\n", framesize - 1, &frame[11])
 
+typedef unsigned char BYTE;
+
+typedef struct{
+  BYTE version[2];
+  BYTE unsync   : 1;
+  BYTE extended : 1;
+  BYTE exper    : 1;
+  size_t size   : 28;
+} id3v2header;
+
+typedef struct{
+  char* id[5];
+  size_t size;
+  BYTE *body;
+} id3v2frame;
+
 int fd;
 unsigned char id3version[2];
 unsigned char id3flags;
