@@ -9,3 +9,9 @@ Documentation on the ID3v2.3 unofficial standard: http://id3.org/d3v2.3.0
 TODO:
 Display extended header information
 Display frame information (basically everything that isn't the header)
+Instead of assigning values from the header into properly named arrays,
+  the header array could be used directly in the print statements. Currently it
+  is the former way so the code could be a little clearer. Perhaps it is better
+  that way.
+Instead of the previous statement, make a struct unioned with a char array. That
+  way I can get the best of both worlds. I guess?
