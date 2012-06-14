@@ -73,8 +73,6 @@ char *getframe(){
     (void) memcpy(frame, frameheader, 10);
     read(fd, frame+10, framesize);
   }
-  else
-    frame = NULL;
   
   return frame;
 }
