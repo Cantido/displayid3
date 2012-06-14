@@ -19,6 +19,9 @@
 #define MEGABYTE 1048576
 #define KILOBYTE 1024
 
+#define MATCHFID( arg ) (strcmp(frameid, arg) == 0)
+#define PRINT_FRAMETEXT( arg ) printf(arg "%.*s\n", framesize - 1, &frame[11])
+
 int fd;
 unsigned char id3version[2];
 unsigned char id3flags;
@@ -69,19 +72,20 @@ char *getframe(){
   
   framesize = calcsize(&frameheader[4]) + 10;
   
-  if((frame = malloc(framesize)) != NULL){
-    (void) memcpy(frame, frameheader, 10);
-    read(fd, frame+10, framesize);
+  if((frame = (char *) malloc(framesize)) != NULL){
+    memcpy(frame, frameheader, 10);
+    read(fd, frame+10, framesize-10);
   }
   
   return frame;
 }
 
+
 void printframe(char *frame){
   unsigned char frameid[5];
   unsigned int framesize;
   unsigned char frameflags[2];
-  
+
   frameid[0] = frame[0];
   frameid[1] = frame[1];
   frameid[2] = frame[2];
@@ -94,7 +98,14 @@ void printframe(char *frame){
   frameflags[1] = frame[9];
   
   printf("Frame ID: %s\n", frameid);
-  printf("Size of frame (excluding 10B header): %d bytes\n", framesize);
+  printf("Size of frame (excluding 10B header): %d bytes", framesize);
+  
+  if(framesize > MEGABYTE)
+    printf(" (%i MiB)", framesize / MEGABYTE);
+  else if(framesize > KILOBYTE)
+    printf(" (%i KiB)", framesize / KILOBYTE);
+  
+  printf("\n");
   
   printf("Flags:\n");
   
@@ -129,7 +140,29 @@ void printframe(char *frame){
   if((frameflags[1] & 0x20) == 0x20)
     printf("Frame is in a group with other frames\n");
   else
-    printf("Frame is not in a group with other frames\n");
+    printf("Frame is not in a group with other frames\n"); 
+    
+    
+  printf("Frame content:\n");
+  
+  if (MATCHFID("TYER"))
+    PRINT_FRAMETEXT("Year recorded: ");
+  else if(MATCHFID("TENC"))
+    PRINT_FRAMETEXT("Encoded with: ");
+  else if(MATCHFID("TBPM"))
+    PRINT_FRAMETEXT("Beats per minute: ");
+  else if(MATCHFID("TCON"))
+    PRINT_FRAMETEXT("Content type: ");
+  else if(MATCHFID("TPE1"))
+    PRINT_FRAMETEXT("Lead Artist or Group: ");
+  else if(MATCHFID("COMM")){
+    printf("Comment Language: %.*s\n", 3, &frame[11]);
+    if(frame[14] != 0x00)
+      printf("Short content descriptor: %s", &frame[14]);
+    else
+      printf("Comment: %.*s", framesize - 5, &frame[15]);
+  }
+  
   
   return;
 }
@@ -143,7 +176,7 @@ int main(int argc, char *argv[]){
   extern unsigned int id3size;
   
   unsigned char id3header[10];
-  char *frame;
+  unsigned char *frame;
   
   
   if(argc != 2){
@@ -231,14 +264,17 @@ int main(int argc, char *argv[]){
   
   printf("\n");
   
-  frame = getframe();
-  if(frame != NULL)
-    printframe(frame);
-  else
-    printf("frame is NULL");
+  
+  int i;
+  for(i = 0; i < 6; i++){
+    if((frame = getframe()) != NULL){
+      printframe(frame);
+      free(frame);
+      frame = NULL;
+    }
+  }
   
   (void) close(fd);
- //free(frame);
   
   return return_code;
 }
