@@ -15,3 +15,5 @@ Instead of assigning values from the header into properly named arrays,
   that way.
 Instead of the previous statement, make a struct unioned with a char array. That
   way I can get the best of both worlds. I guess?
+Properly handle encodings of text frames and ramifications on blocks such as the
+  COMM frame printer.
