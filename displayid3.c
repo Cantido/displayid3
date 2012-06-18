@@ -22,73 +22,159 @@
 #define MATCHFID( arg ) (strcmp(frameid, arg) == 0)
 #define PRINT_FRAMETEXT( arg ) printf(arg "%.*s\n", framesize - 1, &frame[11])
 
+/* start typedefs */
+
 typedef unsigned char BYTE;
 
-typedef struct{
-  BYTE version[2];
-  BYTE unsync   : 1;
-  BYTE extended : 1;
-  BYTE exper    : 1;
-  size_t size   : 28;
+typedef union{
+  struct{
+    BYTE id[3]; /* this will always be 'I' 'D' '3' in a valid ID3 tag */
+    BYTE version[2];
+    BYTE flags;
+    BYTE size[4];
+  };
+  BYTE buffer[10];
 } id3v2header;
 
+typedef union{
+  struct{
+    BYTE id[4];
+    BYTE size[4];
+    BYTE flags[2];
+  };
+  BYTE buffer[10];
+} id3v2frameheader;
+
 typedef struct{
-  char* id[5];
-  size_t size;
+  id3v2frameheader header;
   BYTE *body;
 } id3v2frame;
 
-int fd;
-unsigned char id3version[2];
-unsigned char id3flags;
-unsigned int id3size;
+/* end typedefs */
 
-unsigned int calcsize(char *array){
-  unsigned int size = array[0];
+/* start external variable declaration */
+
+char *progname;
+char *filename;
+
+/* end external variable declarations */
+
+/* start function definitions */
+
+size_t calctagsize(id3v2header *header){
+  size_t size = header->size[0];
   size <<= 7;
-  size |= array[1];
+  size |= header->size[1];
   size <<= 7;
-  size |= array[2];
+  size |= header->size[2];
   size <<= 7;
-  size |= array[3];
+  size |= header->size[3];
   return size;
 }
 
-/* return a pointer to bytes read from the frame, NULL if something screws up */
-char *getframe(){
+size_t calcframesize(id3v2frameheader *frameheader){
+  size_t size = frameheader->size[0];
+  size <<= 7;
+  size |= frameheader->size[1];
+  size <<= 7;
+  size |= frameheader->size[2];
+  size <<= 7;
+  size |= frameheader->size[3];
+  return size;
+}
 
-  extern int fd;
-  extern unsigned int id3size;
+
+
+id3v2header *getheader(int fd){
+  extern char *progname;
+  extern char *filename;
+  id3v2header *header = NULL;
   
-  unsigned char frameheader[10];
-  unsigned char *frame;
-  unsigned int framesize;
-  
-  if (((id3size - 10) - lseek(fd, 0, SEEK_CUR)) <= 0){
-    /* no more bytes left in the header */
+  if(fd < 0)
     return NULL;
-  }
   
-  switch (read(fd, frameheader, 10)){
+  if(lseek(fd, 0, SEEK_SET) != 0)
+    return NULL;
+  
+  switch (read(fd, header->buffer, 10)){
+    case 0:
+      /* read hit end-of-file */
+      fprintf(stderr, "%s: The file %s has no content", progname, filename);
+      return NULL;
+      break;
     case -1:
       /* read encountered an error */
-      perror("displayid3 read error:");
-      /* falls through */
-    case 0:
+      perror(progname);
       return NULL;
       break;
     case 10:
       /* no errors */
       break;
     default:
-      /* unknown error occurred in read() */
+      /* did not read 10 bytes */
+      fprintf(stderr, "%s: could not read 10 bytes from file %s", progname, filename);
       return NULL;
       break;
   }
   
-  framesize = calcsize(&frameheader[4]) + 10;
+  /* verify that read data is a valid ID3v2 header */
   
-  if((frame = (char *) malloc(framesize)) != NULL){
+  if( header->id[0] == 'I' && // 0x49
+      header->id[1] == 'D' && // 0x44
+      header->id[2] == '3' && // 0x33
+      header->version[0] < 0xFF &&
+      header->version[1] < 0xFF &&
+      (header->flags & 0x0F) == 0x00 && // version 2.4 has 4 tags at beginning of byte
+      header->size[0] < 0x80 &&
+      header->size[1] < 0x80 &&
+      header->size[2] < 0x80 &&
+      header->size[3] < 0x80) {
+      /* ID3v2 header is valid */
+  }
+  else{
+    /* ID3v2 header is not valid */
+    return NULL;
+  }
+  
+  return header;
+}
+
+id3v2frame *getframe(int fd){
+
+  id3v2frameheader *frameheader;
+  id3v2frame *frame;
+  char* framebody;
+  size_t framesize;
+  
+  if(fd < 0)
+    return NULL;
+  
+  switch (read(fd, frameheader->buffer, 10)){
+    case 0:
+      /* read hit end-of-file */
+      fprintf(stderr, "%s: The file %s has no content", progname, filename);
+      return NULL;
+      break;
+    case -1:
+      /* read encountered an error */
+      perror(progname);
+      return NULL;
+      break;
+    case 10:
+      /* no errors */
+      break;
+    default:
+      /* did not read 10 bytes */
+      fprintf(stderr, "%s: could not read 10 bytes from file %s", progname, filename);
+      return NULL;
+      break;
+  }
+  
+  /* TODO: Check for frame's validity */
+  
+  framesize = calcframesize(frameheader) + 10;
+  
+  if((frame = (id3v2frame *) malloc(framesize)) != NULL){
     memcpy(frame, frameheader, 10);
     read(fd, frame+10, framesize-10);
   }
@@ -96,22 +182,9 @@ char *getframe(){
   return frame;
 }
 
+void printframe(id3v2frame *frame){
 
-void printframe(char *frame){
-  unsigned char frameid[5];
-  unsigned int framesize;
-  unsigned char frameflags[2];
-
-  frameid[0] = frame[0];
-  frameid[1] = frame[1];
-  frameid[2] = frame[2];
-  frameid[3] = frame[3];
-  frameid[4] = '\0';
-  
-  framesize = calcsize(&frame[4]);
-  
-  frameflags[0] = frame[8];
-  frameflags[1] = frame[9];
+  char *idstring
   
   printf("Frame ID: %s\n", frameid);
   printf("Size of frame (excluding 10B header): %d bytes", framesize);
@@ -186,14 +259,11 @@ void printframe(char *frame){
 int main(int argc, char *argv[]){
   int return_code;
   
-  extern int fd;
-  extern unsigned char id3version[2];
-  extern unsigned char id3flags;
-  extern unsigned int id3size;
+  int fd;
   
-  unsigned char id3header[10];
-  unsigned char *frame;
-  
+  id3v2header current_header;
+  id3v2frameheader current_fheader;
+  id3v2frame current_frame;
   
   if(argc != 2){
     printf("Usage: %s filename", argv[0]);
@@ -205,43 +275,9 @@ int main(int argc, char *argv[]){
     exit(EXIT_FAILURE);
   }
   
-  switch (read(fd, id3header, 10)){
-    case 0:
-      /* read hit end-of-file */
-      printf("%s: The file %s has no content", argv[0], argv[1]);
-      exit(EXIT_FAILURE);
-      break;
-    case -1:
-      /* read encountered an error */
-      perror(argv[0]);
-      exit(EXIT_FAILURE);
-      break;
-    case 10:
-      /* no errors */
-      break;
-    default:
-      /* did not read 10 bytes */
-      printf("%s: could not read 10 bytes from file %s", argv[0], argv[1]);
-      exit(EXIT_FAILURE);
-      break;
-  }
   
-  if( id3header[0] == 0x49 &&
-      id3header[1] == 0x44 &&
-      id3header[2] == 0x33 &&
-      id3header[3] < 0xFF &&
-      id3header[4] < 0xFF &&
-      (id3header[5] & 0x3F) == 0x00 && /* only first two bits can be nonzero */
-      id3header[6] < 0x80 &&
-      id3header[7] < 0x80 &&
-      id3header[8] < 0x80 &&
-      id3header[9] < 0x80){
-      /* ID3v2 tag exists */
-  }
-  else{
-    printf("%s does not have an ID3v2 header.\n", argv[1]);
-    exit(EXIT_FAILURE);
-  }
+  
+  
   
   id3version[0] = id3header[3];
   id3version[1] = id3header[4];
