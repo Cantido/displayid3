@@ -17,3 +17,9 @@ Instead of the previous statement, make a struct unioned with a char array. That
   way I can get the best of both worlds. I guess?
 Properly handle encodings of text frames and ramifications on blocks such as the
   COMM frame printer.
+Use C file pointers instead of file descriptors
+Make a #define or function to package error checking with a read()
+Allow printframe() to print different levels of verbosity
+
+Long-term TODO:
+Recognize all versions of ID3
