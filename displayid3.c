@@ -15,42 +15,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "types.h"
 
 #define MEGABYTE 1048576
 #define KILOBYTE 1024
 
-#define MATCHFID( arg ) (strcmp(frameid, arg) == 0)
-#define PRINT_FRAMETEXT( arg ) printf(arg "%.*s\n", framesize - 1, &frame[11])
-
-/* start typedefs */
-
-typedef unsigned char BYTE;
-
-typedef union{
-  struct{
-    BYTE id[3]; /* this will always be 'I' 'D' '3' in a valid ID3 tag */
-    BYTE version[2];
-    BYTE flags;
-    BYTE size[4];
-  };
-  BYTE buffer[10];
-} id3v2header;
-
-typedef union{
-  struct{
-    BYTE id[4];
-    BYTE size[4];
-    BYTE flags[2];
-  };
-  BYTE buffer[10];
-} id3v2frameheader;
-
-typedef struct{
-  id3v2frameheader header;
-  BYTE *body;
-} id3v2frame;
-
-/* end typedefs */
+#define MATCHFID( arg ) (strcmp( arg , frame->id) == 0)
+#define PRINT_FRAMETEXT( arg ) printf(arg "%.*s\n", (int) frame->size - 1, frame->body)
 
 /* start external variable declaration */
 
@@ -61,212 +32,285 @@ char *filename;
 
 /* start function definitions */
 
-size_t calctagsize(id3v2header *header){
-  size_t size = header->size[0];
-  size <<= 7;
-  size |= header->size[1];
-  size <<= 7;
-  size |= header->size[2];
-  size <<= 7;
-  size |= header->size[3];
-  return size;
+int readcheck(int fd, void *buffer, int nbytes){
+  int return_code;
+  int charsread;
+  
+  if(fd >= 0){
+    charsread = read(fd, buffer, nbytes);
+    
+    if(charsread == nbytes) /* successful read */
+        return_code = 0;
+    else if(charsread == 0){ /* read hit end-of-file */
+      fprintf(stderr, "%s: unexpectedly reached end of file %s",
+              progname, filename);
+      return_code = 1;
+    }
+    else if(charsread == -1){ /* read encountered an error */
+      perror(progname);
+      return_code = 1;
+    }
+    else{ /* did not read n bytes */
+      fprintf(stderr, "%s: could not read %d bytes from file %s\n",
+              progname, nbytes, filename);
+      return_code = 1;
+    }
+  }
+  else
+    return_code = 1;
+  
+  return return_code;
 }
-
-size_t calcframesize(id3v2frameheader *frameheader){
-  size_t size = frameheader->size[0];
-  size <<= 7;
-  size |= frameheader->size[1];
-  size <<= 7;
-  size |= frameheader->size[2];
-  size <<= 7;
-  size |= frameheader->size[3];
-  return size;
-}
-
-
 
 id3v2header *getheader(int fd){
   extern char *progname;
   extern char *filename;
-  id3v2header *header = NULL;
+  static id3v2header header = {0, 0, 0, 0, 0, 0};
+  BYTE buffer[10];
   
-  if(fd < 0)
-    return NULL;
   
-  if(lseek(fd, 0, SEEK_SET) != 0)
-    return NULL;
+  if((lseek(fd, 0, SEEK_SET) == 0) &&
+     (readcheck(fd, buffer, 10) == 0) &&
   
-  switch (read(fd, header->buffer, 10)){
-    case 0:
-      /* read hit end-of-file */
-      fprintf(stderr, "%s: The file %s has no content", progname, filename);
-      return NULL;
-      break;
-    case -1:
-      /* read encountered an error */
-      perror(progname);
-      return NULL;
-      break;
-    case 10:
-      /* no errors */
-      break;
-    default:
-      /* did not read 10 bytes */
-      fprintf(stderr, "%s: could not read 10 bytes from file %s", progname, filename);
-      return NULL;
-      break;
-  }
-  
-  /* verify that read data is a valid ID3v2 header */
-  
-  if( header->id[0] == 'I' && // 0x49
-      header->id[1] == 'D' && // 0x44
-      header->id[2] == '3' && // 0x33
-      header->version[0] < 0xFF &&
-      header->version[1] < 0xFF &&
-      (header->flags & 0x0F) == 0x00 && // version 2.4 has 4 tags at beginning of byte
-      header->size[0] < 0x80 &&
-      header->size[1] < 0x80 &&
-      header->size[2] < 0x80 &&
-      header->size[3] < 0x80) {
-      /* ID3v2 header is valid */
+     (buffer[0] == 'I') && // 0x49
+     (buffer[1] == 'D') && // 0x44
+     (buffer[2] == '3') && // 0x33
+     (buffer[3] < 0xFF) &&
+     (buffer[4] < 0xFF) &&
+     ((buffer[5] & 0x0F) == 0x00) &&
+     (buffer[6] < 0x80) &&
+     (buffer[7] < 0x80) &&
+     (buffer[8] < 0x80) &&
+     (buffer[9] < 0x80)) {
+     
+    /* ID3v2 header is valid */
+    
+    header.version = buffer[3];
+    header.revision = buffer[4];
+    
+    /* About size calculation: Multiplying by 128 is the same as shifting
+        by 7 bits (which was my original method) but removes the worry of
+        endianness of integer storage. Same with the addition (I OR'd before) */
+    
+    header.size = buffer[6];
+    header.size *= 128;
+    header.size += buffer[7];
+    header.size *= 128;
+    header.size += buffer[8];
+    header.size *= 128;
+    header.size += buffer[9];
+    
+    if((buffer[5] & 0x80) == 0x80)
+      header.unsync = 1;
+    else
+      header.unsync = 0;
+    
+    if((buffer[5] & 0x40) == 0x40)
+      header.extheader = 1;   // TODO: Parse extended header data
+    else
+      header.extheader = 0;
+    
+    if((buffer[5] & 0x20) == 0x20)
+      header.experimental = 1;
+    else
+      header.experimental = 0; 
   }
   else{
-    /* ID3v2 header is not valid */
+    /* ID3v2 header is not valid or some other error occurred.*/
     return NULL;
   }
   
-  return header;
+  return &header;
 }
 
 id3v2frame *getframe(int fd){
 
-  id3v2frameheader *frameheader;
-  id3v2frame *frame;
-  char* framebody;
-  size_t framesize;
+  // TODO: Consolidate all of these returns to a single one at the bottom
   
-  if(fd < 0)
-    return NULL;
+  static id3v2frame frame = {{0}, 0, 0, 0, 0, 0, 0, 0, NULL};
+  BYTE buffer[10];
   
-  switch (read(fd, frameheader->buffer, 10)){
-    case 0:
-      /* read hit end-of-file */
-      fprintf(stderr, "%s: The file %s has no content", progname, filename);
-      return NULL;
-      break;
-    case -1:
-      /* read encountered an error */
-      perror(progname);
-      return NULL;
-      break;
-    case 10:
-      /* no errors */
-      break;
-    default:
-      /* did not read 10 bytes */
-      fprintf(stderr, "%s: could not read 10 bytes from file %s", progname, filename);
-      return NULL;
-      break;
+  if(frame.body != NULL){
+    free(frame.body);
   }
+    
+  frame.body = NULL;
+  frame.id[0] = '\0';
+  frame.tag_preserve = 0;
+  frame.file_preserve = 0;
+  frame.read_only = 0;
+  frame.compressed = 0;
+  frame.encrypted = 0;
+  frame.grouped = 0;
   
-  /* TODO: Check for frame's validity */
+  if(readcheck(fd, buffer, 10) == 0){
+    
+    sprintf(frame.id, "%c%c%c%c", buffer[0], buffer[1], buffer[2], buffer[3]);
+    
+    frame.size = buffer[4];
+    frame.size *= 128;
+    frame.size += buffer[5];
+    frame.size *= 128;
+    frame.size += buffer[6];
+    frame.size *= 128;
+    frame.size += buffer[7];
+    
+    if((buffer[8] & 0x80) == 0x80)
+      frame.tag_preserve = 1;
+    
+    if((buffer[8] & 0x40) == 0x40)
+      frame.file_preserve = 1;
+    
+    if((buffer[8] & 0x20) == 0x20)
+      frame.read_only = 1;
+    
+    if((buffer[9] & 0x80) == 0x80)
+      frame.compressed = 1;
+    
+    if((buffer[9] & 0x40) == 0x40)
+      frame.encrypted = 1;
+    
+    if((buffer[9] & 0x20) == 0x20)
+      frame.grouped = 1;
   
-  framesize = calcframesize(frameheader) + 10;
-  
-  if((frame = (id3v2frame *) malloc(framesize)) != NULL){
-    memcpy(frame, frameheader, 10);
-    read(fd, frame+10, framesize-10);
+    if(((frame.body = (BYTE *) malloc(frame.size)) == NULL) ||
+       (readcheck(fd, frame.body, frame.size) != 0))
+      return NULL;
   }
-  
-  return frame;
+  return &frame;
 }
 
-void printframe(id3v2frame *frame){
-
-  char *idstring
+void printheader(id3v2header *header){
+  extern char *progname;
+  extern char *filename;
   
-  printf("Frame ID: %s\n", frameid);
-  printf("Size of frame (excluding 10B header): %d bytes", framesize);
+  printf("ID3v2 Information for file %s:\n", filename);
+  printf("ID3v2 version number: %i.%i\n", header->version, header->revision);
   
-  if(framesize > MEGABYTE)
-    printf(" (%i MiB)", framesize / MEGABYTE);
-  else if(framesize > KILOBYTE)
-    printf(" (%i KiB)", framesize / KILOBYTE);
-  
-  printf("\n");
-  
-  printf("Flags:\n");
-  
-  printf("Tag alter preservation: ");
-  if((frameflags[0] & 0x80) == 0x80)
-    printf("Frame should be discarded\n");
-  else
-    printf("Frame should be preserved\n");
-  
-  printf("File alter preservation: ");
-  if((frameflags[0] & 0x40) == 0x40)
-    printf("Frame should be discarded\n");
-  else
-    printf("Frame should be preserved\n");
-  
-  printf("Frame should be read only: ");
-  if((frameflags[0] & 0x20) == 0x20)
+  printf("Using unsynchronization: ");
+  if(header->unsync == 1)
     printf("yes\n");
   else
     printf("no\n");
   
-  if((frameflags[1] & 0x80) == 0x80)
-    printf("Frame is compressed\n");
+  if(header->extheader == 1)
+    printf("Extended header present after current header\n");
   else
-    printf("Frame is not compressed\n");
+    printf("No extended header after current header\n");
   
-  if((frameflags[1] & 0x40) == 0x40)
-    printf("Frame is encrypted\n");
+  if(header->experimental == 1)
+    printf("Tag is in an experimental state. WARNING: This means this program"
+           " could fail!\n");
   else
-    printf("Frame is not encrypted\n");
+    printf("Tag is not in an experimental state\n");
+
   
-  if((frameflags[1] & 0x20) == 0x20)
-    printf("Frame is in a group with other frames\n");
-  else
-    printf("Frame is not in a group with other frames\n"); 
-    
-    
-  printf("Frame content:\n");
+  printf("Size of tag (excluding 10B header): %Zd bytes", header->size);
+
   
-  if (MATCHFID("TYER"))
-    PRINT_FRAMETEXT("Year recorded: ");
-  else if(MATCHFID("TENC"))
-    PRINT_FRAMETEXT("Encoded with: ");
-  else if(MATCHFID("TBPM"))
-    PRINT_FRAMETEXT("Beats per minute: ");
-  else if(MATCHFID("TCON"))
-    PRINT_FRAMETEXT("Content type: ");
-  else if(MATCHFID("TPE1"))
-    PRINT_FRAMETEXT("Lead Artist or Group: ");
-  else if(MATCHFID("COMM")){
-    printf("Comment Language: %.*s\n", 3, &frame[11]);
-    if(frame[14] != 0x00)
-      printf("Short content descriptor: %s", &frame[14]);
+  if(header->size > MEGABYTE)
+    printf(" (%Zd MiB)", header->size / MEGABYTE);
+
+  else if(header->size > KILOBYTE)
+    printf(" (%Zd KiB)", header->size / KILOBYTE);
+
+  
+  printf("\n");
+}
+
+
+void printframe(id3v2frame *frame, int verbose){
+
+  char *frametext;
+  
+  if(verbose == 1){  // TODO: #define constants for verbosity options
+  
+    printf("Frame ID: %s\n", frame->id);
+    printf("Size of frame (excluding 10B header): %Zd bytes", frame->size);
+  
+   if(frame->size > MEGABYTE)
+     printf(" (%Zi MiB)", frame->size / MEGABYTE);
+    else if(frame->size > KILOBYTE)
+      printf(" (%Zi KiB)", frame->size / KILOBYTE);
+  
+    printf("\n");
+  
+    printf("Flags:\n");
+  
+    printf("If tag is altered: ");
+   if(frame->tag_preserve == 1)
+      printf("Frame should be discarded\n");
     else
-      printf("Comment: %.*s", framesize - 5, &frame[15]);
+      printf("Frame should be preserved\n");
+    
+    printf("If file is altered: ");
+    if(frame->file_preserve == 1)
+      printf("Frame should be discarded\n");
+    else
+      printf("Frame should be preserved\n");
+  
+    if(frame->read_only == 1)
+      printf("Frame is intended to be read only\n");
+    else
+      printf("Frame is not intended to be read only\n");
+    
+    if(frame->compressed == 1)
+      printf("Frame is compressed\n");
+    else
+      printf("Frame is not compressed\n");
+    
+    if(frame->encrypted == 1)
+      printf("Frame is encrypted\n");
+    else
+      printf("Frame is not encrypted\n");
+    
+    if(frame->grouped == 1)
+      printf("Frame is in a group with other frames\n");
+    else
+      printf("Frame is not in a group with other frames\n"); 
+      
+      
+    printf("Frame content:\n");
   }
   
+  if(frame->id[0] == 'T'){ /* frame is a text frame */
+    frametext = malloc(frame->size);
+    memcpy(frametext, frame->body+1, (frame->size)-1);
+    frametext[frame->size] = '\0';
+  }
   
+  if (MATCHFID("TYER"))
+    printf("Year recorded: %s\n", frametext);
+  else if(MATCHFID("TENC"))
+    printf("Encoded with: %s\n", frametext);
+  else if(MATCHFID("TBPM"))
+    printf("Beats per minute: %s\n", frametext);
+  else if(MATCHFID("TCON"))
+    printf("Content type: %s\n", frametext);
+  else if(MATCHFID("TPE1"))
+    printf("Lead Artist or Group: %s\n", frametext);
+  else if(MATCHFID("COMM")){
+    if(verbose == 1)
+      printf("Comment language: %.*s\n", 3, frame->body+1);
+    printf("Short comment: %s\n", frame->body+5);
+  }
   return;
 }
 
+
 int main(int argc, char *argv[]){
-  int return_code;
+  extern char *progname;
+  extern char *filename;
   
   int fd;
   
-  id3v2header current_header;
-  id3v2frameheader current_fheader;
-  id3v2frame current_frame;
+  id3v2frame *frame;
+  
+  progname = argv[0];
+  filename = argv[1];
   
   if(argc != 2){
-    printf("Usage: %s filename", argv[0]);
+    printf("Usage: %s filename\n", argv[0]);
     exit(EXIT_FAILURE);
   }
   
@@ -275,58 +319,16 @@ int main(int argc, char *argv[]){
     exit(EXIT_FAILURE);
   }
   
+  printheader(getheader(fd));
   
-  
-  
-  
-  id3version[0] = id3header[3];
-  id3version[1] = id3header[4];
-  
-  id3flags = id3header[5];
-  
-  id3size = calcsize(&id3header[6]);
-  
-  printf("ID3v2 Information for file %s:\n", argv[1]);
-  printf("ID3v2 version number: %i.%i\n", id3version[0], id3version[1]);
-  
-  printf("Using unsynchronization: ");
-  if((id3flags & 0x80) == 0x80)
-    printf("yes\n");
-  else
-    printf("no\n");
-  
-  printf("Extended header present?: ");
-  if((id3flags & 0x40) == 0x40)
-    printf("yes\n");
-  else
-    printf("no\n");
-  
-  printf("Tag in experimental stage?: ");
-  if ((id3flags & 0x20) == 0x20)
-    printf("yes (WARNING: This program may have trouble interpreting this file!\n");
-  else
-    printf("no\n");
-  
-  printf("Size of tag (excluding 10B header): %i bytes", id3size);
-  
-  if(id3size > MEGABYTE)
-    printf(" (%i MiB)", id3size / MEGABYTE);
-  else if(id3size > KILOBYTE)
-    printf(" (%i KiB)", id3size / KILOBYTE);
-  
-  printf("\n");
-  
-  
-  int i;
-  for(i = 0; i < 6; i++){
-    if((frame = getframe()) != NULL){
-      printframe(frame);
-      free(frame);
-      frame = NULL;
-    }
+  while(((frame = getframe(fd)) != NULL) && frame->size != 0){
+    printframe(frame, 0);
+    free(frame->body);
+    frame->body = NULL;
   }
   
   (void) close(fd);
   
-  return return_code;
+  
+  return 0;
 }
