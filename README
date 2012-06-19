@@ -14,8 +14,6 @@ Properly handle encodings of text frames and ramifications on blocks such as the
   transfer it to a string after the encoding is stripped.
   
 Parse command line options with getopt
-  
-Use C file pointers instead of file descriptors
 
 Allow printframe() to print different levels of verbosity
 
