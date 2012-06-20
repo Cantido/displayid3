@@ -55,7 +55,7 @@ int main(int argc, char *argv[]){
   
   printheader(header);
   
-  while(((frame = getframe(fp)) != NULL) && frame->size != 0){
+  while(((frame = getframe(fp)) != NULL) && frame->body != NULL){
     printframe(frame, 1);
     free(frame->body);
     frame->body = NULL;

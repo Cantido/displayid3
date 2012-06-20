@@ -37,6 +37,16 @@ int readcheck(FILE *fp, void *buffer, size_t nbytes){
   return return_code;
 }
 
+int getid(char *name){
+  int id = 1;
+  
+  for(id = 1; id < 73; id++){
+    if(strncmp(idlist[id], name, 4) == 0)
+      return id;
+  }
+  
+  return 0;
+}
 
 id3v2header *getheader(FILE *fp){
   static id3v2header header = {0, 0, 0, 0, 0, 0};
@@ -100,10 +110,7 @@ id3v2header *getheader(FILE *fp){
 }
 
 id3v2frame *getframe(FILE *fp){
-
-  // TODO: Consolidate all of these returns to a single one at the bottom
-  
-  static id3v2frame frame = {{0}, 0, 0, 0, 0, 0, 0, 0, NULL};
+  static id3v2frame frame = {0, 0, 0, 0, 0, 0, 0, 0, NULL};
   BYTE buffer[10];
   
   if(frame.body != NULL){
@@ -111,7 +118,7 @@ id3v2frame *getframe(FILE *fp){
   }
     
   frame.body = NULL;
-  frame.id[0] = '\0';
+  frame.id = 0;
   frame.tag_alter_discard = 0;
   frame.file_alter_discard = 0;
   frame.read_only = 0;
@@ -119,9 +126,8 @@ id3v2frame *getframe(FILE *fp){
   frame.encrypted = 0;
   frame.grouped = 0;
   
-  if(readcheck(fp, buffer, 10) == 0){
-    
-    sprintf(frame.id, "%c%c%c%c", buffer[0], buffer[1], buffer[2], buffer[3]);
+  if((readcheck(fp, buffer, 10) == 0) &&
+     ((frame.id = getid(buffer)) != 0)){
     
     frame.size = buffer[4];
     frame.size *= 128;
@@ -132,10 +138,10 @@ id3v2frame *getframe(FILE *fp){
     frame.size += buffer[7];
     
     if((buffer[8] & 0x80) == 0x80)
-      frame.tag_preserve = 1;
+      frame.tag_alter_discard = 1;
     
     if((buffer[8] & 0x40) == 0x40)
-      frame.file_preserve = 1;
+      frame.file_alter_discard = 1;
     
     if((buffer[8] & 0x20) == 0x20)
       frame.read_only = 1;
@@ -200,7 +206,7 @@ void printframe(id3v2frame *frame, int verbose){
   
   if(verbose == 1){  // TODO: #define constants for verbosity options
   
-    printf("Frame ID: %s\n", frame->id);
+    printf("Frame ID: %s\n", idlist[frame->id]);
     printf("Size of frame (excluding 10B header): %d bytes", frame->size);
   
    if(frame->size > MEGABYTE)
@@ -248,23 +254,23 @@ void printframe(id3v2frame *frame, int verbose){
     printf("Frame content:\n");
   }
   
-  if(frame->id[0] == 'T'){ /* frame is a text frame */
+  if(frame->id > 21 && frame->id < 60){ /* frame is a text frame */
     frametext = malloc(frame->size);
     memcpy(frametext, frame->body+1, (frame->size)-1);
     frametext[(frame->size)-1] = '\0';
   }
   
-  if (MATCHFID("TYER"))
+  if (frame->id == 60)
     printf("Year recorded: %s\n", frametext);
-  else if(MATCHFID("TENC"))
+  else if(frame->id == 30)
     printf("Encoded with: %s\n", frametext);
-  else if(MATCHFID("TBPM"))
+  else if(frame->id == 24)
     printf("Beats per minute: %s\n", frametext);
-  else if(MATCHFID("TCON"))
+  else if(frame->id == 26)
     printf("Content type: %s\n", frametext);
-  else if(MATCHFID("TPE1"))
+  else if(frame->id == 47)
     printf("Lead Artist or Group: %s\n", frametext);
-  else if(MATCHFID("COMM")){
+  else if(frame->id == 3){
     if(verbose == 1)
       printf("Comment language: %.*s\n", 3, frame->body+1);
     printf("Short comment: %s\n", frame->body+5);
