@@ -5,6 +5,3 @@ No options, only one filename argument accepted.
 
 Based on my verifyid3 program available at https://github.com/Cantido/verifyid3
 Documentation on the ID3v2.3 unofficial standard: http://id3.org/d3v2.3.0
-
-Long-term TODO:
-Recognize all versions of ID3
