@@ -15,17 +15,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "types.h"
 #include "id3v2.h"
 
-/* start external variable declaration */
 
 char *progname;
 char *filename;
 
-/* end external variable declarations */
 
-/* start function definitions */
 
 int main(int argc, char *argv[]){
 
