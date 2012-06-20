@@ -6,21 +6,5 @@ No options, only one filename argument accepted.
 Based on my verifyid3 program available at https://github.com/Cantido/verifyid3
 Documentation on the ID3v2.3 unofficial standard: http://id3.org/d3v2.3.0
 
-TODO:
-Display extended header information
-
-Properly handle encodings of text frames and ramifications on blocks such as the
-  COMM frame printer. The best way would probably be to read the body and
-  transfer it to a string after the encoding is stripped.
-  
-Parse command line options with getopt
-
-Allow printframe() to print different levels of verbosity
-
-Rename tag_preserve and file_preserve members of struct frame to something like
-  tag_discard, because the standard says that 1 indicates that the frame should
-  be discarded, and having "tag_discard" set to 1 makes one assume that the
-  frame should be discarded. Entirely source-code-asthetics.
-
 Long-term TODO:
 Recognize all versions of ID3
