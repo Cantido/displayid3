@@ -132,10 +132,10 @@ id3v2frame *getframe(FILE *fp){
     frame.size += buffer[7];
     
     if((buffer[8] & 0x80) == 0x80)
-      frame.tag_preserve = 1;
+      frame.tag_alter_discard = 1;
     
     if((buffer[8] & 0x40) == 0x40)
-      frame.file_preserve = 1;
+      frame.file_alter_discard = 1;
     
     if((buffer[8] & 0x20) == 0x20)
       frame.read_only = 1;
