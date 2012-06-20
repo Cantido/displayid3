@@ -15,12 +15,12 @@ typedef struct{
 typedef struct{
   char id[5];
   size_t size;
-  BYTE tag_preserve  : 1;
-  BYTE file_preserve : 1;
-  BYTE read_only     : 1;
-  BYTE compressed    : 1;
-  BYTE encrypted     : 1;
-  BYTE grouped       : 1;
+  BYTE tag_alter_discard  : 1;
+  BYTE file_alter_discard : 1;
+  BYTE read_only          : 1;
+  BYTE compressed         : 1;
+  BYTE encrypted          : 1;
+  BYTE grouped            : 1;
   BYTE *body;
 } id3v2frame;
 

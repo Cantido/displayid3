@@ -112,8 +112,8 @@ id3v2frame *getframe(FILE *fp){
     
   frame.body = NULL;
   frame.id[0] = '\0';
-  frame.tag_preserve = 0;
-  frame.file_preserve = 0;
+  frame.tag_alter_discard = 0;
+  frame.file_alter_discard = 0;
   frame.read_only = 0;
   frame.compressed = 0;
   frame.encrypted = 0;
@@ -213,13 +213,13 @@ void printframe(id3v2frame *frame, int verbose){
     printf("Flags:\n");
   
     printf("If tag is altered: ");
-   if(frame->tag_preserve == 1)
+   if(frame->tag_alter_discard == 1)
       printf("Frame should be discarded\n");
     else
       printf("Frame should be preserved\n");
     
     printf("If file is altered: ");
-    if(frame->file_preserve == 1)
+    if(frame->file_alter_discard == 1)
       printf("Frame should be discarded\n");
     else
       printf("Frame should be preserved\n");
