@@ -22,7 +22,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "types.h"
 #include "id3v2.h"
 
 
