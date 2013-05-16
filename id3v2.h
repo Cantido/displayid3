@@ -66,7 +66,7 @@ int getid(char *name){
 
 id3v2header *getheader(FILE *fp){
   static id3v2header header = {0, 0, 0, 0, 0, 0};
-  BYTE buffer[10];
+  char buffer[10];
   
   
   printf("reading now\n");
@@ -127,7 +127,7 @@ id3v2header *getheader(FILE *fp){
 
 id3v2frame *getframe(FILE *fp){
   static id3v2frame frame = {0, 0, 0, 0, 0, 0, 0, 0, NULL};
-  BYTE buffer[10];
+  char buffer[10];
   
   if(frame.body != NULL){
     free(frame.body);
@@ -171,7 +171,7 @@ id3v2frame *getframe(FILE *fp){
     if((buffer[9] & 0x20) == 0x20)
       frame.grouped = 1;
   
-    if(((frame.body = (BYTE *) malloc(frame.size)) == NULL) ||
+    if(((frame.body = (char *) malloc(frame.size)) == NULL) ||
        (readcheck(fp, frame.body, frame.size) != 0))
       return NULL;
   }
@@ -295,4 +295,3 @@ void printframe(id3v2frame *frame, int verbose){
 }
 
 #endif
-

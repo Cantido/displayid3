@@ -17,8 +17,6 @@
 #ifndef TYPES_H
 #define TYPES_H
 
-typedef unsigned char BYTE;
-
 const char * idlist[] = {           // index of last in the row:
   NULL,   "AENC", "APIC", "COMM", "COMR", "ENCR", "EQUA", // 6
   "ETCO", "GEOB", "GRID", "IPLS", "LINK", "MCDI", "MLLT", // 13
@@ -34,24 +32,24 @@ const char * idlist[] = {           // index of last in the row:
 };
 
 typedef struct{
-  BYTE version;
-  BYTE revision;
-  size_t size;
-  BYTE unsync       : 1;
-  BYTE extheader    : 1;
-  BYTE experimental : 1;
+  short version;
+  short revision;
+  short size;
+  short unsync;
+  short extheader;
+  short experimental;
 } id3v2header;
 
 typedef struct{
   int id;
   size_t size;
-  BYTE tag_alter_discard  : 1;
-  BYTE file_alter_discard : 1;
-  BYTE read_only          : 1;
-  BYTE compressed         : 1;
-  BYTE encrypted          : 1;
-  BYTE grouped            : 1;
-  BYTE *body;
+  short tag_alter_discard;
+  short file_alter_discard;
+  short read_only;
+  short compressed;
+  short encrypted;
+  short grouped;
+  char *body;
 } id3v2frame;
 
 
