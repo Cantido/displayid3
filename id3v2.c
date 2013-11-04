@@ -23,7 +23,7 @@ int readcheck(FILE *fp, char *buffer, size_t nbytes){
   }
   else{ /* did not read n bytes */
     fprintf(stderr, "%s: could not read %d bytes from file %s\n",
-            progname, nbytes, filename);
+            progname, (int) nbytes, filename);
     return_code = 1;
   }
   
@@ -199,12 +199,12 @@ void printframe(id3v2frame *frame, int verbose){
   if(verbose == 1){  // TODO: #define constants for verbosity options
   
     printf("Frame ID: %s\n", idlist[frame->id]);
-    printf("Size of frame (excluding 10B header): %d bytes", frame->size);
+    printf("Size of frame (excluding 10B header): %d bytes", (int) frame->size);
   
    if(frame->size > MEGABYTE)
-     printf(" (%i MiB)", frame->size / MEGABYTE);
+     printf(" (%i MiB)", (int) frame->size / MEGABYTE);
     else if(frame->size > KILOBYTE)
-      printf(" (%i KiB)", frame->size / KILOBYTE);
+      printf(" (%i KiB)", (int) frame->size / KILOBYTE);
   
     printf("\n");
   
